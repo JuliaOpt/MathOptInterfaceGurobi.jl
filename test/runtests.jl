@@ -27,8 +27,8 @@ int2test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0)) # SOS
 # # contconic
 lin1tests(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
 lin2tests(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
-# lin3test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
-# lin4test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
+lin3test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
+lin4test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
 
 # # contquadratic
 qp1test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
