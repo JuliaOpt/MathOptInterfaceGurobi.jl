@@ -29,6 +29,36 @@ function MOIGurobiSolver(;kwargs...)
     return MOIGurobiSolver(kwargs)
 end
 
+
+
+const SUPPORTED_OBJECTIVES = [
+    LQOI.Linear,
+    LQOI.Quad
+]
+const SUPPORTED_CONSTRAINTS = [
+    (LQOI.Linear, LQOI.EQ),
+    (LQOI.Linear, LQOI.LE),
+    (LQOI.Linear, LQOI.GE),
+    # (Linear, IV),
+    (LQOI.Quad, LQOI.EQ),
+    (LQOI.Quad, LQOI.LE),
+    (LQOI.Quad, LQOI.GE),
+    (LQOI.SinVar, LQOI.EQ),
+    (LQOI.SinVar, LQOI.LE),
+    (LQOI.SinVar, LQOI.GE),
+    (LQOI.SinVar, LQOI.IV),
+    (LQOI.SinVar, MOI.ZeroOne),
+    (LQOI.SinVar, MOI.Integer),
+    (LQOI.VecVar, MOI.SOS1),
+    (LQOI.VecVar, MOI.SOS2),
+    (LQOI.VecVar, MOI.Nonnegatives),
+    (LQOI.VecVar, MOI.Nonpositives),
+    (LQOI.VecVar, MOI.Zeros),
+    (LQOI.VecLin, MOI.Nonnegatives),
+    (LQOI.VecLin, MOI.Nonpositives),
+    (LQOI.VecLin, MOI.Zeros)
+]
+
 import Gurobi.Model
 
 function GRB.Model(env::GRB.Env)
@@ -50,7 +80,7 @@ function MOI.SolverInstance(s::MOIGurobiSolver)
         env
     )
     for (name,value) in s.options
-        GRB.setparam!(env, GRB.GRB_CONTROLS_DICT[name], value)
+        GRB.setparam!(m.inner, string(name), value)
     end
     # csi.inner.mipstart_effort = s.mipstart_effortlevel
     # if s.logfile != ""
@@ -59,6 +89,11 @@ function MOI.SolverInstance(s::MOIGurobiSolver)
     return m
 end
 
+
+lqs_supported_constraints(s::MOIGurobiSolver) = SUPPORTED_CONSTRAINTS
+lqs_supported_objectives(s::MOIGurobiSolver) = SUPPORTED_OBJECTIVES
+lqs_supported_constraints(s::GurobiSolverInstance) = SUPPORTED_CONSTRAINTS
+lqs_supported_objectives(s::GurobiSolverInstance) = SUPPORTED_OBJECTIVES
 #=
     inner wrapper
 =#
@@ -72,7 +107,7 @@ end
 
 # LQOI.lqs_setparam!(env, name, val)
 # TODO fix this one
-LQOI.lqs_setparam!(m::GurobiSolverInstance, name, val) = GRB.setparam!(m.env, GRB.GRB_CONTROLS_DICT[name], val)
+LQOI.lqs_setparam!(m::GurobiSolverInstance, name, val) = GRB.setparam!(m.inner, string(name), val)
 
 # LQOI.lqs_setlogfile!(env, path)
 # TODO fix this one
@@ -249,6 +284,11 @@ LQOI.lqs_ctrtype_map(m::GurobiSolverInstance) = CTR_TYPE_MAP
 # LQOI.lqs_copyquad(m, intvec,intvec, floatvec) #?
 function LQOI.lqs_copyquad!(m::GRB.Model, I, J, V)
     GRB.delq!(m)
+    for i in eachindex(V)
+        if I[i] == J[i]
+            V[i] /= 2
+        end
+    end
     GRB.add_qpterms!(m, I, J, V)
     return nothing
 end
@@ -324,160 +364,93 @@ LQOI.lqs_mipopt!(m::GRB.Model) = LQOI.lqs_lpopt!(m)
 LQOI.lqs_qpopt!(m::GRB.Model) = LQOI.lqs_lpopt!(m)
 
 # LQOI.lqs_lpopt!(m)
-LQOI.lqs_lpopt!(m::GRB.Model) = (GRB.update_model!(m);GRB.write_model(m, "test.lp");GRB.optimize(m))
+LQOI.lqs_lpopt!(m::GRB.Model) = (GRB.update_model!(m);GRB.optimize(m))
 
 # LQOI.lqs_terminationstatus(m)
 function LQOI.lqs_terminationstatus(model::GurobiSolverInstance)
-    m = model.inner 
-    return MOI.Success
-    # stat_lp = GRB.get_lp_status2(m)
-    # if GRB.is_mip(m)
-    #     stat_mip = GRB.get_mip_status2(m)
-    #     if stat_mip == GRB.MIP_NotLoaded
-    #         return MOI.OtherError
-    #     elseif stat_mip == GRB.MIP_LPNotOptimal
-    #         # MIP search incomplete but there is no linear sol
-    #         # return MOI.OtherError
-    #         return MOI.InfeasibleOrUnbounded
-    #     elseif stat_mip == GRB.MIP_NoSolFound
-    #         # MIP search incomplete but there is no integer sol
-    #         other = GRBmoi_stopstatus(m)
-    #         if other == MOI.OtherError
-    #             return MOI.SlowProgress#OtherLimit
-    #         else 
-    #             return other
-    #         end
+    m = model.inner
+    
+    stat = get_status(m)
 
-    #     elseif stat_mip == GRB.MIP_Solution
-    #         # MIP search incomplete but there is a solution
-    #         other = GRBmoi_stopstatus(m)
-    #         if other == MOI.OtherError
-    #             return MOI.OtherLimit
-    #         else 
-    #             return other
-    #         end
-
-    #     elseif stat_mip == GRB.MIP_Infeasible
-    #         if GRB.hasdualray(m)
-    #             return MOI.Success
-    #         else
-    #             return MOI.InfeasibleNoResult
-    #         end
-    #     elseif stat_mip == GRB.MIP_Optimal
-    #         return MOI.Success
-    #     elseif stat_mip == GRB.MIP_Unbounded
-    #         if GRB.hasprimalray(m)
-    #             return MOI.Success
-    #         else
-    #             return MOI.UnboundedNoResult
-    #         end
-    #     end
-    #     return MOI.OtherError
-    # else
-    #     if stat_lp == GRB.LP_Unstarted
-    #         return MOI.OtherError
-    #     elseif stat_lp == GRB.LP_Optimal
-    #         return MOI.Success
-    #     elseif stat_lp == GRB.LP_Infeasible
-    #         if GRB.hasdualray(m)
-    #             return MOI.Success
-    #         else
-    #             return MOI.InfeasibleNoResult
-    #         end
-    #     elseif stat_lp == GRB.LP_CutOff
-    #         return MOI.ObjectiveLimit
-    #     elseif stat_lp == GRB.LP_Unfinished
-    #         return GRBmoi_stopstatus(m)
-    #     elseif stat_lp == GRB.LP_Unbounded
-    #         if GRB.hasprimalray(m)
-    #             return MOI.Success
-    #         else
-    #             return MOI.UnboundedNoResult
-    #         end
-    #     elseif stat_lp == GRB.LP_CutOffInDual
-    #         return MOI.ObjectiveLimit
-    #     elseif stat_lp == GRB.LP_Unsolved
-    #         return MOI.OtherError
-    #     elseif stat_lp == GRB.LP_NonConvex
-    #         return MOI.InvalidInstance
-    #     end
-    #     return MOI.OtherError
-    # end
-end
-
-function GRBmoi_stopstatus(m::GRB.Model)
-    ss = GRB.get_stopstatus(m)
-    if ss == GRB.StopTimeLimit
-        return MOI.TimeLimit
-    elseif ss == GRB.StopControlC
-        return MOI.Interrupted
-    elseif ss == GRB.StopNodeLimit
-        # should not be here
-        warn("should not be here")
-        return MOI.NodeLimit
-    elseif ss == GRB.StopIterLimit
-        return MOI.IterationLimit
-    elseif ss == GRB.StopMIPGap
+    if stat == :loaded
+        return MOI.OtherError
+    elseif stat == :optimal
+        return MOI.Success
+    elseif stat == :infeasible
+        if hasdualray(m)
+            return MOI.Success
+        else
+            return MOI.InfeasibleNoResult
+        end
+    elseif stat == :inf_or_unbd
+        return MOI.InfeasibleOrUnbounded
+    elseif stat == :unbounded
+        if hasprimalray(m)
+            return MOI.Success
+        else
+            return MOI.UnboundedNoResult
+        end
+    elseif stat == :cutoff
         return MOI.ObjectiveLimit
-    elseif ss == GRB.StopSolLimit
+    elseif stat == :iteration_limit
+        return MOI.IterationLimit
+    elseif stat == :node_limit
+        return MOI.NodeLimit
+    elseif stat == :time_limit
+        return MOI.TimeLimit
+    elseif stat == :solution_limit
         return MOI.SolutionLimit
-    elseif ss == GRB.StopUser
+    elseif stat == :interrupted
         return MOI.Interrupted
+    elseif stat == :numeric
+        return MOI.NumericalError
+    elseif stat == :suboptimal
+        return MOI.OtherLimit
+    elseif stat == :inprogress
+        return MOI.OtherError
+    elseif stat == :user_obj_limit
+        return MOI.ObjectiveLimit
     end
     return MOI.OtherError
 end
 
+
 function LQOI.lqs_primalstatus(model::GurobiSolverInstance)
     m = model.inner
-    return MOI.FeasiblePoint
-    # if GRB.is_mip(m)
-    #     stat_mip = GRB.get_mip_status2(m)
-    #     if stat_mip in [GRB.MIP_Solution, GRB.MIP_Optimal]
-    #         return MOI.FeasiblePoint
-    #     elseif GRB.MIP_Infeasible && GRB.hasdualray(m)
-    #         return MOI.InfeasibilityCertificate
-    #     elseif GRB.MIP_Unbounded && GRB.hasprimalray(m)
-    #         return MOI.InfeasibilityCertificate
-    #     elseif stat_mip in [GRB.MIP_LPOptimal, GRB.MIP_NoSolFound]
-    #         return MOI.InfeasiblePoint
-    #     end
-    #     return MOI.UnknownResultStatus
-    # else
-    #     stat_lp = GRB.get_lp_status2(m)
-    #     if stat_lp == GRB.LP_Optimal
-    #         return MOI.FeasiblePoint
-    #     elseif stat_lp == GRB.LP_Unbounded && GRB.hasprimalray(m)
-    #         return MOI.InfeasibilityCertificate
-    #     # elseif stat_lp == LP_Infeasible
-    #     #     return MOI.InfeasiblePoint - Gurobi wont return
-    #     # elseif cutoff//cutoffindual ???
-    #     else
-    #         return MOI.UnknownResultStatus
-    #     end
-    # end
+
+    stat = get_status(m)
+
+    if stat == :optimal
+        return MOI.FeasiblePoint
+    elseif stat == :solution_limit
+        return MOI.FeasiblePoint
+    elseif stat in [:inf_or_unbd, :unbounded] && hasprimalray(m)
+        return MOI.InfeasibilityCertificate
+    elseif stat == :suboptimal
+        return MOI.FeasiblePoint
+    else 
+        return MOI.UnknownResultStatus
+    end
 end
 function LQOI.lqs_dualstatus(model::GurobiSolverInstance)
     m = model.inner 
-    if is_mip(model.inner)
+    stat = get_status(m)
+    
+    if GRB.is_mip(m) || GRB.is_qcp(m)
         return MOI.UnknownResultStatus
     else
-        return MOI.FeasiblePoint   
+        if stat == :optimal
+            return MOI.FeasiblePoint
+        elseif stat == :solution_limit
+            return MOI.FeasiblePoint
+        elseif stat in [:inf_or_unbd, :infeasible] && hasdualray(m)
+            return MOI.InfeasibilityCertificate
+        elseif stat == :suboptimal
+            return MOI.FeasiblePoint
+        else 
+            return MOI.UnknownResultStatus
+        end  
     end
-    # if GRB.is_mip(m)
-    #     return MOI.UnknownResultStatus
-    # else
-    #     stat_lp = GRB.get_lp_status2(m)
-    #     if stat_lp == GRB.LP_Optimal
-    #         return MOI.FeasiblePoint
-    #     elseif stat_lp == GRB.LP_Infeasible && GRB.hasdualray(m)
-    #         return MOI.InfeasibilityCertificate
-    #     # elseif stat_lp == LP_Unbounded
-    #     #     return MOI.InfeasiblePoint - Gurobi wont return
-    #     # elseif cutoff//cutoffindual ???
-    #     else
-    #         return MOI.UnknownResultStatus
-    #     end
-    # end
 end
 
 
@@ -522,11 +495,28 @@ LQOI.lqs_getbaritcnt(m::GRB.Model) = GRB.get_barrier_iter_count(m)
 LQOI.lqs_getnodecnt(m::GRB.Model) = GRB.get_node_count(m)
 
 # LQOI.lqs_dualfarkas(m, place)
-LQOI.lqs_dualfarkas!(m::GRB.Model, place) = GRB.getdualray!(m, place)
+LQOI.lqs_dualfarkas!(m::GRB.Model, place) = GRB.get_dblattrarray!(place, m, "FarkasDual", 1)
+
+function hasdualray(m::GRB.Model)
+    try
+        GRB.get_dblattrarray(m, "FarkasDual", 1, GRB.num_constrs(m))
+        return true
+    catch
+        return false
+    end
+end
 
 # LQOI.lqs_getray(m, place)
-LQOI.lqs_getray!(m::GRB.Model, place) = GRB.getprimalray!(m, place)
+LQOI.lqs_getray!(m::GRB.Model, place) = GRB.get_dblattrarray!(place, m, "UnbdRay", 1)
 
+function hasprimalray(m::GRB.Model)
+    try
+        GRB.get_dblattrarray(m, "UnbdRay", 1, GRB.num_vars(m))
+        return true
+    catch
+        return false
+    end
+end
 
 MOI.free!(m::GurobiSolverInstance) = GRB.free_model(m.inner)
 
@@ -536,5 +526,14 @@ Writes the current problem data to the given file.
 Supported file types are solver-dependent.
 """
 MOI.writeproblem(m::GurobiSolverInstance, filename::String, flags::String="") = GRB.write_model(m.inner, filename, flags)
+
+
+# blocked
+MOI.addconstraint!(m::GurobiSolverInstance, func::LQOI.Linear, set::LQOI.IV) = error("not supported")
+MOI.addconstraints!(m::GurobiSolverInstance, func::Vector{LQOI.Linear}, set::Vector{LQOI.IV}) = error("not supported")
+
+MOI.cangetattribute(m::GurobiSolverInstance, any, c::LQOI.LCR{LQOI.IV}) = false
+MOI.canmodifyconstraint(m::GurobiSolverInstance, c::LQOI.LCR{LQOI.IV}, chg) = false
+MOI.candelete(m::GurobiSolverInstance, c::LQOI.LCR{LQOI.IV}) = false
 
 end # module
