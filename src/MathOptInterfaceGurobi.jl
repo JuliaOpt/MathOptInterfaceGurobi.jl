@@ -1,4 +1,4 @@
-module GurobiMathOptInterface
+module MathOptInterfaceGurobi
 # todo
 # single get/set
 # fix chg coeff
@@ -7,7 +7,7 @@ module GurobiMathOptInterface
 
 export MOIGurobiSolver
 
-const GRBMOI = GurobiMathOptInterface
+const GRBMOI = MathOptInterfaceGurobi
 
 import Base.show, Base.copy
 

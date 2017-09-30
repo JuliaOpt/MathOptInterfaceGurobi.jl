@@ -1,1 +1,1 @@
-# GurobiMathOptInterface.jl
+# MathOptInterfaceGurobi.jl
