@@ -6,35 +6,35 @@ include(joinpath(Pkg.dir("MathOptInterface"), "test", "contquadratic.jl"))
 
 
 # contlinear
-linear1test(GurobiMathOptInterface.MOIGurobiSolver())
-linear2test(GurobiMathOptInterface.MOIGurobiSolver())
-linear3test(GurobiMathOptInterface.MOIGurobiSolver())
-linear4test(GurobiMathOptInterface.MOIGurobiSolver())
-linear5test(GurobiMathOptInterface.MOIGurobiSolver())
-linear6test(GurobiMathOptInterface.MOIGurobiSolver())
-linear7test(GurobiMathOptInterface.MOIGurobiSolver())
-# linear8test(GurobiMathOptInterface.MOIGurobiSolver()) # infeasible/unbounded
-linear9test(GurobiMathOptInterface.MOIGurobiSolver())
-# linear10test(GurobiMathOptInterface.MOIGurobiSolver()) # ranged
-linear11test(GurobiMathOptInterface.MOIGurobiSolver())
+linear1test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+linear2test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+linear3test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+linear4test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+linear5test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+linear6test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+linear7test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+linear8test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0)) # infeasible/unbounded
+linear9test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+# linear10test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0)) # ranged
+linear11test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
 
 # # intlinear
-knapsacktest(GurobiMathOptInterface.MOIGurobiSolver())
-int1test(GurobiMathOptInterface.MOIGurobiSolver())
-int2test(GurobiMathOptInterface.MOIGurobiSolver()) # SOS
-# int3test(GurobiMathOptInterface.MOIGurobiSolver()) # ranged
+knapsacktest(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+int1test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+int2test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0)) # SOS
+# int3test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0)) # ranged
 
 # # contconic
-lin1tests(GurobiMathOptInterface.MOIGurobiSolver())
-lin2tests(GurobiMathOptInterface.MOIGurobiSolver())
-# lin3test(GurobiMathOptInterface.MOIGurobiSolver() # infeasible
-# lin4test(GurobiMathOptInterface.MOIGurobiSolver()) # infeasible
+lin1tests(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+lin2tests(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0))
+# lin3test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
+# lin4test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
 
 # # contquadratic
-# qp1test(GurobiMathOptInterface.MOIGurobiSolver(), atol = 1e-5)
-# qp2test(GurobiMathOptInterface.MOIGurobiSolver(), atol = 1e-5)
-# qp3test(GurobiMathOptInterface.MOIGurobiSolver(), atol = 1e-5)
-# qcp1test(GurobiMathOptInterface.MOIGurobiSolver(), atol = 1e-5)
-# qcp2test(GurobiMathOptInterface.MOIGurobiSolver(), atol = 1e-5)
-# qcp3test(GurobiMathOptInterface.MOIGurobiSolver(), atol = 1e-5)
-# socp1test(GurobiMathOptInterface.MOIGurobiSolver(), atol = 1e-5)
+qp1test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
+qp2test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
+qp3test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
+qcp1test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-3)
+# qcp2test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-5) # duals
+# qcp3test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-5) # duals
+socp1test(GurobiMathOptInterface.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
