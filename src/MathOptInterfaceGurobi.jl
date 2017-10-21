@@ -525,14 +525,14 @@ MOI.free!(m::GurobiSolverInstance) = GRB.free_model(m.inner)
 Writes the current problem data to the given file.
 Supported file types are solver-dependent.
 """
-MOI.writeproblem(m::GurobiSolverInstance, filename::String, flags::String="") = GRB.write_model(m.inner, filename, flags)
+writeproblem(m::GurobiSolverInstance, filename::String, flags::String="") = GRB.write_model(m.inner, filename, flags)
 
 
 # blocked
 MOI.addconstraint!(m::GurobiSolverInstance, func::LQOI.Linear, set::LQOI.IV) = error("not supported")
 MOI.addconstraints!(m::GurobiSolverInstance, func::Vector{LQOI.Linear}, set::Vector{LQOI.IV}) = error("not supported")
 
-MOI.cangetattribute(m::GurobiSolverInstance, any, c::LQOI.LCR{LQOI.IV}) = false
+MOI.canget(m::GurobiSolverInstance, any, c::LQOI.LCR{LQOI.IV}) = false
 MOI.canmodifyconstraint(m::GurobiSolverInstance, c::LQOI.LCR{LQOI.IV}, chg) = false
 MOI.candelete(m::GurobiSolverInstance, c::LQOI.LCR{LQOI.IV}) = false
 
