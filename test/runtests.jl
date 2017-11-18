@@ -1,40 +1,45 @@
-using Gurobi, Base.Test, MathOptInterface, MathOptInterfaceGurobi
-include(joinpath(Pkg.dir("MathOptInterface"), "test", "contlinear.jl"))
-include(joinpath(Pkg.dir("MathOptInterface"), "test", "intlinear.jl"))
-include(joinpath(Pkg.dir("MathOptInterface"), "test", "contconic.jl"))
-include(joinpath(Pkg.dir("MathOptInterface"), "test", "contquadratic.jl"))
+using Gurobi, Base.Test, MathOptInterface, MathOptInterfaceTests, MathOptInterfaceGurobi
 
+const MOIT = MathOptInterfaceTests
+const MOIGRB = MathOptInterfaceGurobi
 
-# contlinear
-linear1test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-linear2test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-linear3test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-linear4test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-linear5test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-linear6test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-linear7test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-linear8test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0)) # infeasible/unbounded
-linear9test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-# linear10test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0)) # ranged
-linear11test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
+@testset "MathOptInterfaceGurobi" begin
+    @testset "Linear tests" begin
+        linconfig = MOIT.TestConfig(1e-8,1e-8,true,true,true)
+        solver = MOIGRB.MOIGurobiSolver(OutputFlag=0)
+        MOIT.contlineartest(solver , linconfig, ["linear10","linear12","linear8a","linear8b","linear8c"])
+        
+        solver_nopresolve = MOIGRB.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)
+        MOIT.contlineartest(solver_nopresolve , linconfig, ["linear10","linear12","linear8a"])
 
-# # intlinear
-knapsacktest(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-int1test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-int2test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0)) # SOS
-# int3test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0)) # ranged
+        linconfig_nocertificate = MOIT.TestConfig(1e-8,1e-8,true,true,false)
+        MOIT.linear12test(solver, linconfig_nocertificate)
+        MOIT.linear8atest(solver, linconfig_nocertificate)
 
-# # contconic
-lin1tests(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-lin2tests(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0))
-lin3test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
-lin4test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)) # infeasible
+        # 10 is ranged
+    end
 
-# # contquadratic
-qp1test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
-qp2test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
-qp3test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
-qcp1test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0), atol = 1e-3)
-# qcp2test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0), atol = 1e-5) # duals
-# qcp3test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0), atol = 1e-5) # duals
-socp1test(MathOptInterfaceGurobi.MOIGurobiSolver(OutputFlag=0), atol = 1e-5)
+    @testset "Quadratic tests" begin
+        quadconfig = MOIT.TestConfig(1e-5,1e-3,false,false,true)
+        solver = MOIGRB.MOIGurobiSolver(OutputFlag=0)
+        MOIT.contquadratictest(solver, quadconfig)
+    end
+
+    @testset "Linear Conic tests" begin
+        linconfig = MOIT.TestConfig(1e-8,1e-8,true,true,true)
+        solver = MOIGRB.MOIGurobiSolver(OutputFlag=0)
+        MOIT.lintest(solver, linconfig, ["lin3","lin4"])
+
+        solver_nopresolve = MOIGRB.MOIGurobiSolver(OutputFlag=0,InfUnbdInfo = 1)
+        MOIT.lintest(solver_nopresolve, linconfig)
+    end
+
+    @testset "Integer Linear tests" begin
+        intconfig = MOIT.TestConfig(1e-8,1e-8,true,true,true)
+        solver = MOIGRB.MOIGurobiSolver(OutputFlag=0)
+        MOIT.intlineartest(solver, intconfig, ["int3"])
+
+        # 3 is ranged
+    end
+end
+;
