@@ -5,14 +5,11 @@ module MathOptInterfaceGurobi
 # inplace getters
 # updates!
 
-export MOIGurobiSolver
+export GurobiSolverInstance
 
 const GRBMOI = MathOptInterfaceGurobi
 
 import Base.show, Base.copy
-
-# Standard LP interface
-# importall MathProgBase.SolverInterface
 
 using Gurobi
 const GRB = Gurobi
@@ -20,16 +17,6 @@ using MathOptInterface
 const MOI = MathOptInterface
 using LinQuadOptInterface
 const LQOI = LinQuadOptInterface
-
-
-struct MOIGurobiSolver <: LQOI.LinQuadSolver
-    options
-end
-function MOIGurobiSolver(;kwargs...)
-    return MOIGurobiSolver(kwargs)
-end
-
-
 
 const SUPPORTED_OBJECTIVES = [
     LQOI.Linear,
@@ -66,32 +53,26 @@ function GRB.Model(env::GRB.Env)
 end
 
 mutable struct GurobiSolverInstance <: LQOI.LinQuadSolverInstance
-    
     LQOI.@LinQuadSolverInstanceBase
     env
-    
 end
-
-function MOI.SolverInstance(s::MOIGurobiSolver)
+function GurobiSolverInstance(;kwargs...)
 
     env = GRB.Env()
-    m = GurobiSolverInstance(
+    instance = GurobiSolverInstance(
         (LQOI.@LinQuadSolverInstanceBaseInit)...,
         env
     )
-    for (name,value) in s.options
-        GRB.setparam!(m.inner, string(name), value)
+    for (name,value) in kwargs
+        GRB.setparam!(instance.inner, string(name), value)
     end
     # csi.inner.mipstart_effort = s.mipstart_effortlevel
     # if s.logfile != ""
     #     LQOI.lqs_setlogfile!(env, s.logfile)
     # end
-    return m
+    return instance
 end
 
-
-LQOI.lqs_supported_constraints(s::MOIGurobiSolver) = SUPPORTED_CONSTRAINTS
-LQOI.lqs_supported_objectives(s::MOIGurobiSolver) = SUPPORTED_OBJECTIVES
 LQOI.lqs_supported_constraints(s::GurobiSolverInstance) = SUPPORTED_CONSTRAINTS
 LQOI.lqs_supported_objectives(s::GurobiSolverInstance) = SUPPORTED_OBJECTIVES
 #=
@@ -343,7 +324,7 @@ LQOI.lqs_getnumcols(instance::GurobiSolverInstance) = (GRB.update_model!(instanc
 LQOI.lqs_newcols!(instance::GurobiSolverInstance, int) = (GRB.add_cvars!(instance.inner, zeros(int));GRB.update_model!(instance.inner))
 
 # LQOI.lqs_delcols!(m, col, col)
-LQOI.lqs_delcols!(instance::GurobiSolverInstance, col, col2) = GRB.del_vars!(instance.inner, col)
+LQOI.lqs_delcols!(instance::GurobiSolverInstance, col, col2) = (GRB.del_vars!(instance.inner, col);GRB.update_model!(instance.inner))
 
 # LQOI.lqs_addmipstarts(m, colvec, valvec)
 function LQOI.lqs_addmipstarts!(instance::GurobiSolverInstance, colvec, valvec) 
@@ -522,15 +503,15 @@ MOI.free!(m::GurobiSolverInstance) = GRB.free_model(m.inner)
 Writes the current problem data to the given file.
 Supported file types are solver-dependent.
 """
-writeproblem(m::GurobiSolverInstance, filename::String, flags::String="") = GRB.write_model(m.inner, filename, flags)
+writeproblem(m::GurobiSolverInstance, filename::String, flags::String="") = GRB.write_model(m.inner, filename)
 
 
 # blocked
 MOI.addconstraint!(m::GurobiSolverInstance, func::LQOI.Linear, set::LQOI.IV) = error("not supported")
 MOI.addconstraints!(m::GurobiSolverInstance, func::Vector{LQOI.Linear}, set::Vector{LQOI.IV}) = error("not supported")
 
-MOI.canget(m::GurobiSolverInstance, any, c::LQOI.LCR{LQOI.IV}) = false
-MOI.canmodifyconstraint(m::GurobiSolverInstance, c::LQOI.LCR{LQOI.IV}, chg) = false
-MOI.candelete(m::GurobiSolverInstance, c::LQOI.LCR{LQOI.IV}) = false
+MOI.canget(m::GurobiSolverInstance, any, c::LQOI.LCI{LQOI.IV}) = false
+MOI.canmodifyconstraint(m::GurobiSolverInstance, c::LQOI.LCI{LQOI.IV}, chg) = false
+MOI.candelete(m::GurobiSolverInstance, c::LQOI.LCI{LQOI.IV}) = false
 
 end # module
