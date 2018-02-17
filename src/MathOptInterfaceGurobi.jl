@@ -1,15 +1,6 @@
 module MathOptInterfaceGurobi
-# todo
-# single get/set
-# fix chg coeff
-# inplace getters
-# updates!
 
-export GurobiSolverInstance
-
-const GRBMOI = MathOptInterfaceGurobi
-
-import Base.show, Base.copy
+export GurobiOptimizer
 
 using Gurobi
 const GRB = Gurobi
@@ -36,8 +27,8 @@ const SUPPORTED_CONSTRAINTS = [
     (LQOI.SinVar, LQOI.IV),
     (LQOI.SinVar, MOI.ZeroOne),
     (LQOI.SinVar, MOI.Integer),
-    (LQOI.VecVar, MOI.SOS1),
-    (LQOI.VecVar, MOI.SOS2),
+    (LQOI.VecVar, LQOI.SOS1),
+    (LQOI.VecVar, LQOI.SOS2),
     (LQOI.VecVar, MOI.Nonnegatives),
     (LQOI.VecVar, MOI.Nonpositives),
     (LQOI.VecVar, MOI.Zeros),
@@ -46,35 +37,38 @@ const SUPPORTED_CONSTRAINTS = [
     (LQOI.VecLin, MOI.Zeros)
 ]
 
-import Gurobi.Model
-
-function GRB.Model(env::GRB.Env)
-    return GRB.Model(env,"defaultname")
-end
-
-mutable struct GurobiSolverInstance <: LQOI.LinQuadSolverInstance
-    LQOI.@LinQuadSolverInstanceBase
+mutable struct GurobiOptimizer <: LQOI.LinQuadOptimizer
+    LQOI.@LinQuadOptimizerBase
     env
+    params::Dict{String,Any}
+    GurobiOptimizer(::Void) = new()
 end
-function GurobiSolverInstance(;kwargs...)
+
+LQOI.LinQuadModel(::Type{GurobiOptimizer},env) = GRB.Model(env::GRB.Env,"defaultname")
+
+function GurobiOptimizer(;kwargs...)
 
     env = GRB.Env()
-    instance = GurobiSolverInstance(
-        (LQOI.@LinQuadSolverInstanceBaseInit)...,
-        env
-    )
+    m = GurobiOptimizer(nothing)
+    m.env = env
+    m.params = Dict{String,Any}()
+    MOI.empty!(m)
     for (name,value) in kwargs
-        GRB.setparam!(instance.inner, string(name), value)
+        m.params[string(name)] = value
+        GRB.setparam!(m.inner, string(name), value)
     end
-    # csi.inner.mipstart_effort = s.mipstart_effortlevel
-    # if s.logfile != ""
-    #     LQOI.lqs_setlogfile!(env, s.logfile)
-    # end
-    return instance
+    return m
 end
 
-LQOI.lqs_supported_constraints(s::GurobiSolverInstance) = SUPPORTED_CONSTRAINTS
-LQOI.lqs_supported_objectives(s::GurobiSolverInstance) = SUPPORTED_OBJECTIVES
+function MOI.empty!(m::GurobiOptimizer) 
+    MOI.empty!(m,m.env)
+    for (name,value) in m.params
+        GRB.setparam!(m.inner, name, value)
+    end
+end
+
+LQOI.lqs_supported_constraints(s::GurobiOptimizer) = SUPPORTED_CONSTRAINTS
+LQOI.lqs_supported_objectives(s::GurobiOptimizer) = SUPPORTED_OBJECTIVES
 #=
     inner wrapper
 =#
@@ -88,11 +82,11 @@ LQOI.lqs_supported_objectives(s::GurobiSolverInstance) = SUPPORTED_OBJECTIVES
 
 # LQOI.lqs_setparam!(env, name, val)
 # TODO fix this one
-LQOI.lqs_setparam!(m::GurobiSolverInstance, name, val) = GRB.setparam!(m.inner, string(name), val)
+LQOI.lqs_setparam!(m::GurobiOptimizer, name, val) = GRB.setparam!(m.inner, string(name), val)
 
 # LQOI.lqs_setlogfile!(env, path)
 # TODO fix this one
-LQOI.lqs_setlogfile!(m::GurobiSolverInstance, path) = GRB.setlogfile(m.env, path::String)
+LQOI.lqs_setlogfile!(m::GurobiOptimizer, path) = GRB.setlogfile(m.env, path::String)
 
 # LQOI.lqs_getprobtype(m)
 # TODO - consider removing, apparently useless
@@ -102,20 +96,19 @@ LQOI.lqs_setlogfile!(m::GurobiSolverInstance, path) = GRB.setlogfile(m.env, path
 =#
 
 cintvec(v::Vector) = convert(Vector{Int32}, v)
-cdoublevec(v::Vector) = convert(Vector{Float64}, v)
 
-_getsense(m::GurobiSolverInstance, ::MOI.EqualTo{Float64}) = Cchar('=')
-_getsense(m::GurobiSolverInstance, ::MOI.LessThan{Float64}) = Cchar('<')
-_getsense(m::GurobiSolverInstance, ::MOI.GreaterThan{Float64}) = Cchar('>')
-_getsense(m::GurobiSolverInstance, ::MOI.Zeros)        = Cchar('=')
-_getsense(m::GurobiSolverInstance, ::MOI.Nonpositives) = Cchar('<')
-_getsense(m::GurobiSolverInstance, ::MOI.Nonnegatives) = Cchar('>')
-_getboundsense(m::GurobiSolverInstance, ::MOI.Nonpositives) = Cchar('>')
-_getboundsense(m::GurobiSolverInstance, ::MOI.Nonnegatives) = Cchar('<')
+_getsense(m::GurobiOptimizer, ::MOI.EqualTo{Float64}) = Cchar('=')
+_getsense(m::GurobiOptimizer, ::MOI.LessThan{Float64}) = Cchar('<')
+_getsense(m::GurobiOptimizer, ::MOI.GreaterThan{Float64}) = Cchar('>')
+_getsense(m::GurobiOptimizer, ::MOI.Zeros)        = Cchar('=')
+_getsense(m::GurobiOptimizer, ::MOI.Nonpositives) = Cchar('<')
+_getsense(m::GurobiOptimizer, ::MOI.Nonnegatives) = Cchar('>')
+_getboundsense(m::GurobiOptimizer, ::MOI.Nonpositives) = Cchar('>')
+_getboundsense(m::GurobiOptimizer, ::MOI.Nonnegatives) = Cchar('<')
 
 # LQOI.lqs_chgbds!(m, colvec, valvec, sensevec)
 # TODO - improve single type
-function LQOI.lqs_chgbds!(instance::GurobiSolverInstance, colvec, valvec, sensevec)
+function LQOI.lqs_chgbds!(instance::GurobiOptimizer, colvec, valvec, sensevec)
     lb_len = count(x->x==Cchar('L'), sensevec)
     LB_val = Array{Float64}(0)
     sizehint!(LB_val, lb_len)
@@ -152,29 +145,29 @@ end
 
 
 # LQOI.lqs_getlb(m, col)
-LQOI.lqs_getlb(instance::GurobiSolverInstance, col) = (GRB.update_model!(instance.inner);GRB.get_dblattrlist( instance.inner, "LB", GRB.ivec(col))[1])
+LQOI.lqs_getlb(instance::GurobiOptimizer, col) = (GRB.update_model!(instance.inner);GRB.get_dblattrlist( instance.inner, "LB", GRB.ivec(col))[1])
 # LQOI.lqs_getub(m, col)
-LQOI.lqs_getub(instance::GurobiSolverInstance, col) = GRB.get_dblattrlist( instance.inner, "UB", GRB.ivec(col))[1]
+LQOI.lqs_getub(instance::GurobiOptimizer, col) = GRB.get_dblattrlist( instance.inner, "UB", GRB.ivec(col))[1]
 
 # LQOI.lqs_getnumrows(m)
-LQOI.lqs_getnumrows(instance::GurobiSolverInstance) = GRB.num_constrs(instance.inner)
+LQOI.lqs_getnumrows(instance::GurobiOptimizer) = GRB.num_constrs(instance.inner)
 
 # LQOI.lqs_addrows!(m, rowvec, colvec, coefvec, sensevec, rhsvec)
-LQOI.lqs_addrows!(instance::GurobiSolverInstance, rowvec, colvec, coefvec, sensevec, rhsvec) = (GRB.add_constrs!(instance.inner, rowvec, colvec, coefvec, sensevec, rhsvec);GRB.update_model!(instance.inner))
+LQOI.lqs_addrows!(instance::GurobiOptimizer, rowvec, colvec, coefvec, sensevec, rhsvec) = (GRB.add_constrs!(instance.inner, rowvec, colvec, coefvec, sensevec, rhsvec);GRB.update_model!(instance.inner))
 
 # LQOI.lqs_getrhs(m, rowvec)
-LQOI.lqs_getrhs(instance::GurobiSolverInstance, row) = GRB.get_dblattrlist( instance.inner, "RHS", GRB.ivec(row))[1]
+LQOI.lqs_getrhs(instance::GurobiOptimizer, row) = GRB.get_dblattrlist( instance.inner, "RHS", GRB.ivec(row))[1]
 
 # colvec, coef = LQOI.lqs_getrows(m, rowvec)
 # TODO improve
-function LQOI.lqs_getrows(instance::GurobiSolverInstance, idx)
+function LQOI.lqs_getrows(instance::GurobiOptimizer, idx)
     A = GRB.get_constrs(instance.inner, idx, 1)'
     return A.rowval-1, A.nzval
 end
 
 # LQOI.lqs_getcoef(m, row, col) #??
 # TODO improve
-function LQOI.lqs_getcoef(instance::GurobiSolverInstance, row, col) #??
+function LQOI.lqs_getcoef(instance::GurobiOptimizer, row, col) #??
     return getcoeff(model::Model, row::Integer, col::Integer)
     # A = GRB.get_rows(m, row, row)'
     # cols = A.rowval
@@ -190,7 +183,7 @@ end
 
 # LQOI.lqs_chgcoef!(m, row, col, coef)
 # TODO SPLIT THIS ONE
-function LQOI.lqs_chgcoef!(instance::GurobiSolverInstance, row, col, coef) 
+function LQOI.lqs_chgcoef!(instance::GurobiOptimizer, row, col, coef) 
     if row == 0
         GRB.set_dblattrlist!(instance.inner, "Obj", Cint[col], Float64[coef])
     elseif col == 0
@@ -202,37 +195,37 @@ function LQOI.lqs_chgcoef!(instance::GurobiSolverInstance, row, col, coef)
 end
 
 # LQOI.lqs_delrows!(m, row, row)
-LQOI.lqs_delrows!(instance::GurobiSolverInstance, rowbeg, rowend) = GRB.del_constrs!(instance.inner, cintvec(collect(rowbeg:rowend))) 
+LQOI.lqs_delrows!(instance::GurobiOptimizer, rowbeg, rowend) = GRB.del_constrs!(instance.inner, cintvec(collect(rowbeg:rowend))) 
 
 # LQOI.lqs_chgctype!(m, colvec, typevec)
 # TODO fix types
-LQOI.lqs_chgctype!(instance::GurobiSolverInstance, colvec, typevec) = GRB.set_charattrlist!(instance.inner, "VType", GRB.ivec(colvec), GRB.cvec(typevec))
+LQOI.lqs_chgctype!(instance::GurobiOptimizer, colvec, typevec) = GRB.set_charattrlist!(instance.inner, "VType", GRB.ivec(colvec), GRB.cvec(typevec))
 
 # LQOI.lqs_chgsense!(m, rowvec, sensevec)
 # TODO fix types
-LQOI.lqs_chgsense!(instance::GurobiSolverInstance, rowvec, sensevec) = GRB.set_charattrlist!(instance.inner, "Sense", GRB.ivec(rowvec), GRB.cvec(sensevec))
+LQOI.lqs_chgsense!(instance::GurobiOptimizer, rowvec, sensevec) = GRB.set_charattrlist!(instance.inner, "Sense", GRB.ivec(rowvec), GRB.cvec(sensevec))
 
 const VAR_TYPE_MAP = Dict{Symbol,Cchar}(
     :CONTINUOUS => Cchar('C'),
     :INTEGER => Cchar('I'),
     :BINARY => Cchar('B')
 )
-LQOI.lqs_vartype_map(m::GurobiSolverInstance) = VAR_TYPE_MAP
+LQOI.lqs_vartype_map(m::GurobiOptimizer) = VAR_TYPE_MAP
 
 # LQOI.lqs_addsos(m, colvec, valvec, typ)
-LQOI.lqs_addsos!(instance::GurobiSolverInstance, colvec, valvec, typ) = (GRB.add_sos!(instance.inner, typ, colvec, valvec);GRB.update_model!(instance.inner))
+LQOI.lqs_addsos!(instance::GurobiOptimizer, colvec, valvec, typ) = (GRB.add_sos!(instance.inner, typ, colvec, valvec);GRB.update_model!(instance.inner))
 # LQOI.lqs_delsos(m, idx, idx)
-LQOI.lqs_delsos!(instance::GurobiSolverInstance, idx1, idx2) = (GRB.del_sos!(instance.inner, cintvec(collect(idx1:idx2)));GRB.update_model!(instance.inner))
+LQOI.lqs_delsos!(instance::GurobiOptimizer, idx1, idx2) = (GRB.del_sos!(instance.inner, cintvec(collect(idx1:idx2)));GRB.update_model!(instance.inner))
 
 const SOS_TYPE_MAP = Dict{Symbol,Symbol}(
     :SOS1 => :SOS1,#Cchar('1'),
     :SOS2 => :SOS2#Cchar('2')
 )
-LQOI.lqs_sertype_map(m::GurobiSolverInstance) = SOS_TYPE_MAP
+LQOI.lqs_sertype_map(m::GurobiOptimizer) = SOS_TYPE_MAP
 
 # LQOI.lqs_getsos(m, idx)
 # TODO improve getting processes
-function LQOI.lqs_getsos(instance::GurobiSolverInstance, idx)
+function LQOI.lqs_getsos(instance::GurobiOptimizer, idx)
     A, types = GRB.get_sos_matrix(instance.inner)
     line = A[idx,:] #sparse vec
     cols = line.nzind
@@ -242,13 +235,13 @@ function LQOI.lqs_getsos(instance::GurobiSolverInstance, idx)
 end
 
 # LQOI.lqs_getnumqconstrs(m)
-LQOI.lqs_getnumqconstrs(instance::GurobiSolverInstance) = GRB.num_qconstrs(instance.inner)
+LQOI.lqs_getnumqconstrs(instance::GurobiOptimizer) = GRB.num_qconstrs(instance.inner)
 
 # LQOI.lqs_addqconstr(m, cols,coefs,rhs,sense, I,J,V)
-LQOI.lqs_addqconstr!(instance::GurobiSolverInstance, cols,coefs,rhs,sense, I,J,V) = GRB.add_qconstr!(instance.inner, cols, coefs, I, J, V, sense, rhs)
+LQOI.lqs_addqconstr!(instance::GurobiOptimizer, cols,coefs,rhs,sense, I,J,V) = GRB.add_qconstr!(instance.inner, cols, coefs, I, J, V, sense, rhs)
 
 # LQOI.lqs_chgrngval
-LQOI.lqs_chgrngval!(instance::GurobiSolverInstance, rows, vals) = GRB.chg_rhsrange!(instance.inner, cintvec(rows), -vals)
+LQOI.lqs_chgrngval!(instance::GurobiOptimizer, rows, vals) = GRB.chg_rhsrange!(instance.inner, cintvec(rows), -vals)
 
 const CTR_TYPE_MAP = Dict{Symbol,Cchar}(
     :RANGE => Cchar('R'),
@@ -256,14 +249,14 @@ const CTR_TYPE_MAP = Dict{Symbol,Cchar}(
     :UPPER => Cchar('U'),
     :EQUALITY => Cchar('E')
 )
-LQOI.lqs_ctrtype_map(m::GurobiSolverInstance) = CTR_TYPE_MAP
+LQOI.lqs_ctrtype_map(m::GurobiOptimizer) = CTR_TYPE_MAP
 
 #=
     Objective
 =#
 
 # LQOI.lqs_copyquad(m, intvec,intvec, floatvec) #?
-function LQOI.lqs_copyquad!(instance::GurobiSolverInstance, I, J, V)
+function LQOI.lqs_copyquad!(instance::GurobiOptimizer, I, J, V)
     GRB.delq!(instance.inner)
     for i in eachindex(V)
         if I[i] == J[i]
@@ -275,7 +268,7 @@ function LQOI.lqs_copyquad!(instance::GurobiSolverInstance, I, J, V)
 end
 
 # LQOI.lqs_chgobj(m, colvec,coefvec)
-function LQOI.lqs_chgobj!(instance::GurobiSolverInstance, colvec, coefvec) 
+function LQOI.lqs_chgobj!(instance::GurobiOptimizer, colvec, coefvec) 
     nvars = GRB.num_vars(instance.inner)
     obj = zeros(Float64, nvars)
 
@@ -290,7 +283,7 @@ end
 
 # LQOI.lqs_chgobjsen(m, symbol)
 # TODO improve min max names
-function LQOI.lqs_chgobjsen!(instance::GurobiSolverInstance, symbol)
+function LQOI.lqs_chgobjsen!(instance::GurobiOptimizer, symbol)
     if symbol in [:minimize, :Min]
         GRB.set_sense!(instance.inner, :minimize)
     else
@@ -301,10 +294,10 @@ end
     
 
 # LQOI.lqs_getobj(instance.inner)
-LQOI.lqs_getobj(instance::GurobiSolverInstance) = GRB.get_dblattrarray( instance.inner, "Obj", 1, num_vars(instance.inner)   )
+LQOI.lqs_getobj(instance::GurobiOptimizer) = GRB.get_dblattrarray( instance.inner, "Obj", 1, num_vars(instance.inner)   )
 
 # lqs_getobjsen(m)
-function LQOI.lqs_getobjsen(instance::GurobiSolverInstance)
+function LQOI.lqs_getobjsen(instance::GurobiOptimizer)
     s = GRB.model_sense(instance.inner)
     if s in [:maximize, :Max]
         return MOI.MaxSense
@@ -318,16 +311,16 @@ end
 =#
 
 # LQOI.lqs_getnumcols(m)
-LQOI.lqs_getnumcols(instance::GurobiSolverInstance) = (GRB.update_model!(instance.inner); GRB.num_vars(instance.inner))
+LQOI.lqs_getnumcols(instance::GurobiOptimizer) = (GRB.update_model!(instance.inner); GRB.num_vars(instance.inner))
 
 # LQOI.lqs_newcols!(m, int)
-LQOI.lqs_newcols!(instance::GurobiSolverInstance, int) = (GRB.add_cvars!(instance.inner, zeros(int));GRB.update_model!(instance.inner))
+LQOI.lqs_newcols!(instance::GurobiOptimizer, int) = (GRB.add_cvars!(instance.inner, zeros(int));GRB.update_model!(instance.inner))
 
 # LQOI.lqs_delcols!(m, col, col)
-LQOI.lqs_delcols!(instance::GurobiSolverInstance, col, col2) = (GRB.del_vars!(instance.inner, col);GRB.update_model!(instance.inner))
+LQOI.lqs_delcols!(instance::GurobiOptimizer, col, col2) = (GRB.del_vars!(instance.inner, col);GRB.update_model!(instance.inner))
 
 # LQOI.lqs_addmipstarts(m, colvec, valvec)
-function LQOI.lqs_addmipstarts!(instance::GurobiSolverInstance, colvec, valvec) 
+function LQOI.lqs_addmipstarts!(instance::GurobiOptimizer, colvec, valvec) 
     x = zeros(GRB.num_vars(instance.inner))
     for i in eachindex(colvec)
         x[colvec[i]] = valvec[i]
@@ -339,16 +332,16 @@ end
 =#
 
 # LQOI.lqs_mipopt!(m)
-LQOI.lqs_mipopt!(instance::GurobiSolverInstance) = LQOI.lqs_lpopt!(instance)
+LQOI.lqs_mipopt!(instance::GurobiOptimizer) = LQOI.lqs_lpopt!(instance)
 
 # LQOI.lqs_qpopt!(m)
-LQOI.lqs_qpopt!(instance::GurobiSolverInstance) = LQOI.lqs_lpopt!(instance)
+LQOI.lqs_qpopt!(instance::GurobiOptimizer) = LQOI.lqs_lpopt!(instance)
 
 # LQOI.lqs_lpopt!(m)
-LQOI.lqs_lpopt!(instance::GurobiSolverInstance) = (GRB.update_model!(instance.inner);GRB.optimize(instance.inner))
+LQOI.lqs_lpopt!(instance::GurobiOptimizer) = (GRB.update_model!(instance.inner);GRB.optimize(instance.inner))
 
 # LQOI.lqs_terminationstatus(m)
-function LQOI.lqs_terminationstatus(instance::GurobiSolverInstance)
+function LQOI.lqs_terminationstatus(instance::GurobiOptimizer)
     
     stat = get_status(instance.inner)
 
@@ -395,7 +388,7 @@ function LQOI.lqs_terminationstatus(instance::GurobiSolverInstance)
 end
 
 
-function LQOI.lqs_primalstatus(instance::GurobiSolverInstance)
+function LQOI.lqs_primalstatus(instance::GurobiOptimizer)
 
     stat = get_status(instance.inner)
 
@@ -411,7 +404,7 @@ function LQOI.lqs_primalstatus(instance::GurobiSolverInstance)
         return MOI.UnknownResultStatus
     end
 end
-function LQOI.lqs_dualstatus(instance::GurobiSolverInstance)
+function LQOI.lqs_dualstatus(instance::GurobiOptimizer)
     stat = get_status(instance.inner)
     
     if GRB.is_mip(instance.inner) || GRB.is_qcp(instance.inner)
@@ -433,10 +426,10 @@ end
 
 
 # LQOI.lqs_getx!(m, place)
-LQOI.lqs_getx!(instance::GurobiSolverInstance, place) = GRB.get_dblattrarray!(place, instance.inner, "X", 1)
+LQOI.lqs_getx!(instance::GurobiOptimizer, place) = GRB.get_dblattrarray!(place, instance.inner, "X", 1)
 
 # LQOI.lqs_getax!(m, place)
-function LQOI.lqs_getax!(instance::GurobiSolverInstance, place)
+function LQOI.lqs_getax!(instance::GurobiOptimizer, place)
     GRB.get_dblattrarray!(place, instance.inner, "Slack", 1)
     rhs = GRB.get_dblattrarray(instance.inner, "RHS", 1, num_constrs(instance.inner))
     for i in eachindex(place)
@@ -445,37 +438,37 @@ function LQOI.lqs_getax!(instance::GurobiSolverInstance, place)
     nothing
 end
 # LQOI.lqs_getdj!(m, place)
-LQOI.lqs_getdj!(instance::GurobiSolverInstance, place) = GRB.get_dblattrarray!(place, instance.inner, "RC", 1)
+LQOI.lqs_getdj!(instance::GurobiOptimizer, place) = GRB.get_dblattrarray!(place, instance.inner, "RC", 1)
 
 # LQOI.lqs_getpi!(m, place)
-LQOI.lqs_getpi!(instance::GurobiSolverInstance, place) = GRB.get_dblattrarray!(place, instance.inner, "Pi", 1)
+LQOI.lqs_getpi!(instance::GurobiOptimizer, place) = GRB.get_dblattrarray!(place, instance.inner, "Pi", 1)
 
 # LQOI.lqs_getobjval(m)
-LQOI.lqs_getobjval(instance::GurobiSolverInstance) = GRB.get_objval(instance.inner)
+LQOI.lqs_getobjval(instance::GurobiOptimizer) = GRB.get_objval(instance.inner)
 
 # LQOI.lqs_getbestobjval(m)
-LQOI.lqs_getbestobjval(instance::GurobiSolverInstance) = GRB.get_objval(instance.inner)
+LQOI.lqs_getbestobjval(instance::GurobiOptimizer) = GRB.get_objval(instance.inner)
 
 # LQOI.lqs_getmiprelgap(m)
-function LQOI.lqs_getmiprelgap(instance::GurobiSolverInstance)
+function LQOI.lqs_getmiprelgap(instance::GurobiOptimizer)
     L = GRB.get_objval(instance.inner)
     U = GRB.get_objbound(instance.inner)
     return abs(U-L)/U
 end
 
 # LQOI.lqs_getitcnt(m)
-LQOI.lqs_getitcnt(instance::GurobiSolverInstance)  = GRB.get_iter_count(instance.inner)
+LQOI.lqs_getitcnt(instance::GurobiOptimizer)  = GRB.get_iter_count(instance.inner)
 
 # LQOI.lqs_getbaritcnt(m)
-LQOI.lqs_getbaritcnt(instance::GurobiSolverInstance) = GRB.get_barrier_iter_count(instance.inner)
+LQOI.lqs_getbaritcnt(instance::GurobiOptimizer) = GRB.get_barrier_iter_count(instance.inner)
 
 # LQOI.lqs_getnodecnt(m)
-LQOI.lqs_getnodecnt(instance::GurobiSolverInstance) = GRB.get_node_count(instance.inner)
+LQOI.lqs_getnodecnt(instance::GurobiOptimizer) = GRB.get_node_count(instance.inner)
 
 # LQOI.lqs_dualfarkas(m, place)
-LQOI.lqs_dualfarkas!(instance::GurobiSolverInstance, place) = GRB.get_dblattrarray!(place, instance.inner, "FarkasDual", 1)
+LQOI.lqs_dualfarkas!(instance::GurobiOptimizer, place) = GRB.get_dblattrarray!(place, instance.inner, "FarkasDual", 1)
 
-function hasdualray(instance::GurobiSolverInstance)
+function hasdualray(instance::GurobiOptimizer)
     try
         GRB.get_dblattrarray(instance.inner, "FarkasDual", 1, GRB.num_constrs(instance.inner))
         return true
@@ -485,9 +478,9 @@ function hasdualray(instance::GurobiSolverInstance)
 end
 
 # LQOI.lqs_getray(m, place)
-LQOI.lqs_getray!(instance::GurobiSolverInstance, place) = GRB.get_dblattrarray!(place, instance.inner, "UnbdRay", 1)
+LQOI.lqs_getray!(instance::GurobiOptimizer, place) = GRB.get_dblattrarray!(place, instance.inner, "UnbdRay", 1)
 
-function hasprimalray(instance::GurobiSolverInstance)
+function hasprimalray(instance::GurobiOptimizer)
     try
         GRB.get_dblattrarray(instance.inner, "UnbdRay", 1, GRB.num_vars(instance.inner))
         return true
@@ -496,22 +489,22 @@ function hasprimalray(instance::GurobiSolverInstance)
     end
 end
 
-MOI.free!(m::GurobiSolverInstance) = GRB.free_model(m.inner)
+MOI.free!(m::GurobiOptimizer) = GRB.free_model(m.inner)
 
 """
-    writeproblem(m::AbstractSolverInstance, filename::String)
+    writeproblem(m: :MOI.AbstractOptimizer, filename::String)
 Writes the current problem data to the given file.
 Supported file types are solver-dependent.
 """
-writeproblem(m::GurobiSolverInstance, filename::String, flags::String="") = GRB.write_model(m.inner, filename)
+writeproblem(m::GurobiOptimizer, filename::String, flags::String="") = GRB.write_model(m.inner, filename)
 
 
 # blocked
-MOI.addconstraint!(m::GurobiSolverInstance, func::LQOI.Linear, set::LQOI.IV) = error("not supported")
-MOI.addconstraints!(m::GurobiSolverInstance, func::Vector{LQOI.Linear}, set::Vector{LQOI.IV}) = error("not supported")
+MOI.addconstraint!(m::GurobiOptimizer, func::LQOI.Linear, set::LQOI.IV) = error("not supported")
+MOI.addconstraints!(m::GurobiOptimizer, func::Vector{LQOI.Linear}, set::Vector{LQOI.IV}) = error("not supported")
 
-MOI.canget(m::GurobiSolverInstance, any, c::LQOI.LCI{LQOI.IV}) = false
-MOI.canmodifyconstraint(m::GurobiSolverInstance, c::LQOI.LCI{LQOI.IV}, chg) = false
-MOI.candelete(m::GurobiSolverInstance, c::LQOI.LCI{LQOI.IV}) = false
+MOI.canget(m::GurobiOptimizer, any, c::LQOI.LCI{LQOI.IV}) = false
+MOI.canmodifyconstraint(m::GurobiOptimizer, c::LQOI.LCI{LQOI.IV}, chg) = false
+MOI.candelete(m::GurobiOptimizer, c::LQOI.LCI{LQOI.IV}) = false
 
 end # module
