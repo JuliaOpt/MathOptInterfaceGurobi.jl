@@ -41,5 +41,13 @@ const MOIGRB = MathOptInterfaceGurobi
 
         # 3 is ranged
     end
+    @testset "ModelLike tests" begin
+        intconfig = MOIT.TestConfig()
+        solver = XpressOptimizer()
+        MOIT.validtest(solver)
+        MOIT.emptytest(solver)
+        solver2 = XpressOptimizer()
+        MOIT.copytest(solver,solver2)
+    end
 end
 ;
